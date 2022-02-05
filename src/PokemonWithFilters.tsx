@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from 'axios';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pokemon, PokeapiResponse } from './types';
 
 interface PokemonFilteredListProps {
@@ -13,6 +13,15 @@ interface PokemonFilteredListProps {
  *
  * If you setState in a useEffect, and just after call the callback,
  * the state inside the callback will be stale, here `page` is stale
+ *
+ * Be careful when your function uses state or props that change:
+ * it means that your function is NOT pure !
+ * Calling fetchMorePokemon the way we did (with page state) was not pure
+ * because we update the state each time we call the function
+ * fetchPokemon() // page === 1
+ * fetchPokemon() // page === 2
+ * fetchPokemon() // page === 3
+ * This is NOT pure and can bring confusion like I did =]
  *
  * solution :
  * - avoid state in callback
@@ -31,12 +40,16 @@ const PokemonFilteredList = ({
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
 
-  const fetchMorePokemon = async () => {
+  // one solution is to use function params, avoiding the use of state
+  // we make the function PURE!
+  const fetchMorePokemon = async (pageParam: number) => {
     const config: AxiosRequestConfig = {
       baseURL: 'https://pokeapi.co/api/v2/',
       params: {
+        // step prop not stale
         limit: step,
-        offset: page ? page * step : undefined,
+        // here we used the stale page state instead of pageParam
+        offset: pageParam ? pageParam * step : undefined,
       },
     };
 
@@ -51,14 +64,20 @@ const PokemonFilteredList = ({
     setPokemon([]);
     setPage(0);
     setHasMore(true);
+
+    console.log('page', page); // stale page, maybe not 0
+
+    if (initialLoad) {
+      fetchMorePokemon(0);
+    }
   }, [step]);
 
   // not sure of this solution...
-  useEffect(() => {
-    if (pokemon.length === 0 && initialLoad) {
-      fetchMorePokemon();
-    }
-  }, [pokemon]);
+  // useEffect(() => {
+  //   if (pokemon.length === 0 && initialLoad) {
+  //     fetchMorePokemon();
+  //   }
+  // }, [pokemon]);
 
   return (
     <div>
@@ -77,7 +96,7 @@ const PokemonFilteredList = ({
         <div>no pokemons</div>
       )}
 
-      <button disabled={!hasMore} onClick={() => fetchMorePokemon()}>
+      <button disabled={!hasMore} onClick={() => fetchMorePokemon(page)}>
         Load pokemon
       </button>
     </div>
